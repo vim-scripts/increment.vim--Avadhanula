@@ -51,6 +51,7 @@
 " get them in increasing order. I use <c-a> because its similar to the <c-a>
 " command in normal mode which increments the number under the cursor.
 " 
+" Last Modification: Dec 17 2001 00:59:09
 
 
 "=========================================================================== 
@@ -101,9 +102,9 @@ function! IncrementColumn(pad, ...)
 	end
 
 	exe r1
-	" take care of leading tabs which leads to virtcol != col
-	let cdiff = c1v - c1
-	exe "let presNum = ".strpart(getline('.'), c1-1, c2-c1+1-cdiff)
+
+	exe "let presNum = ".strpart(getline('.'), c1-1, clen+1)
+
 	let lastnum = presNum + incr*(r2-r1)
 	" a simple way to find the number of digits in a number (including decimal
 	" points, - signs etc).
