@@ -1,45 +1,64 @@
-" File: increment.vim
+" File:   increment.vim
 " Author: Srinath Avadhanula
-" Email: srinath@eecs.berkeley.edu
+" Email:  srinath@eecs.berkeley.edu
 "
-" this is yet another script to create incremented lists. the usage is very
-" intuitive because you visually select the block of numbers to be incremented
-" instead of running search/replace commands, which is ofcourse not bad too,
-" but still... to be honest, i remember seeing a script very similar to this
-" somewhere... i ran a google search with "increment list vim", but couldnt
-" unearth it... hence made this script.  
+" This script provides a way to quickly create incremented lists (either
+" increasing or decreasing) using the visual block mode. 
 " 
-" to illustrate the use, suppose you want to initialize the first 7 elements
-" of a (matlab) array with the first 7 multiples of 3, you can do the
-" following
+" Synopsis:
+" =========
+" 1. Suppose you have a column of the following form:
+"     array(1) = 3;
+"     array(1) = 3;
+"     array(1) = 3;
+"     array(1) = 3;
+"     array(1) = 3;
+" 2. Choose the column of '1's using Ctrl-V and then run the command Inc (you
+"    should see "'<,'>Inc" on the command line at this point)(if you do not
+"    have any other user commands starting with 'I', just I will suffice).
+"    This will tranform the text as:
+"     array(1) = 3;       array(1) = 3;
+"     array(1) = 3;       array(2) = 3;
+"     array(1) = 3;  -->  array(3) = 3;
+"     array(1) = 3;       array(4) = 3;
+"     array(1) = 3;       array(5) = 3;
+" 3. You can then choose the column of '3's (again using Ctrl-V) and run the
+"    command "Inc 3" to generate another incremented list. This will
+"    generate:
+"     array(1) = 3;        array(1) =  3;
+"     array(2) = 3;        array(2) =  6;
+"     array(3) = 3;  -->   array(3) =  9;
+"     array(4) = 3;        array(4) = 12;
+"     array(5) = 3;        array(5) = 15;
+" 	
+" 	Note: increment.vim automatically pads the numbers in the the column
+" 	with spaces in order to get them right aligned. This is useful in most
+" 	cases, but for cases when this might be bad, use IncN which doesnt do
+" 	any alignment. 
 " 
-" 1. first type in the first line as
-"     array(1) = 3
-" 2. yank and paste 6 times
-"     yy6p
-" 3. then using control-v, you select the column of '1's. press control-v
-"    again to leave visual mode (this still retains the < and the > marks)
-" 4. run the command utility:
-"     :Inc
-" 5. repeat the selection-deselection with the column of '3's.
-" 6. this time run the command
-"     :Inc 3
-" voila! (okay so 6 steps is not exactly voila material, but it still saves you a lot of key-presses)
+" Commands:
+" =========
+" 1. Inc : generates a column of increasing numbers with RIGHT  alignment.
+" 2. IncN: generates a column of increasing numbers with NO     alignment.
+" 3. IncL: generates a column of increasing numbers with LEFT   alignment
 " 
-" Note: the command Inc is "smart" in the sense that it pads the column with
-" leading zeros if the list consists of numbers with unequal number of
-" digits. If you do not want this, (for example if the number is the suffix
-" of a variable name), then use the command "IncN" instead of "Inc"
+" Tip:
+" A mapping which goes well with this command is the following:
 " 
-" a nifty mapping which goes well with this command is the following:
+" vnoremap <c-a> :Inc<CR>
 " 
-" vnoremap <c-a> <c-v>:Inc 1<cr>
+" With this mapping, select a column of numbers and press Ctrl-A, which will
+" get them in increasing order. I use <c-a> because its similar to the <c-a>
+" command in normal mode which increments the number under the cursor.
 " 
-" with this mapping, you can select a block of numbers and press control-a in
-" visual mode and you get an incremented list of numbers.  (this is very
-" similar to the control-a command in normal mode which increments the number
-" under the cursor)
 
+
+"=========================================================================== 
+com! -ra -nargs=? Inc :call IncrementColumn(1,<args>)
+com! -ra -nargs=? IncR :call IncrementColumn(2,<args>)
+com! -ra -nargs=? IncN :call IncrementColumn(0,<args>)
+
+"=========================================================================== 
 function! StrRepeat(str, count)
 	let i = 1
 	let retStr = ""
@@ -50,9 +69,9 @@ function! StrRepeat(str, count)
 	return retStr
 endfunction
 
-" first argument is either 0 or 1 depending on whether padding with leading
-" spaces is desired (pad = 1) or not. the second argument contains the counter
-" increment. its optional. if not specified, its assumed to be 1.
+" first argument is either 0 or 1 or 2 depending on whether padding with
+" spaces is desired (pad = 1,2) or not. the second argument contains the
+" counter increment. its optional. if not specified, its assumed to be 1.
 function! IncrementColumn(pad, ...)
 	if a:0 == 0
 		let incr = 1
@@ -64,21 +83,40 @@ function! IncrementColumn(pad, ...)
 
 	let c1 = col("'<")
 	let c2 = col("'>")
+	let c1v = virtcol("'<")
+	let c2v = virtcol("'>")
+	let clen = c2v - c1v
+	if c1 > c2
+		let temp = c1
+		let c1 = c2
+		let c2 = temp
+	end
+
 	let r1 = line("'<")
 	let r2 = line("'>")
+	if r1 > r2
+		let temp = r1
+		let r1 = r2
+		let r2 = temp
+	end
 
-	normal `<
-	exe "let presNum = ".strpart(getline('.'), c1-1, c2-c1+1)
+	exe r1
+	" take care of leading tabs which leads to virtcol != col
+	let cdiff = c1v - c1
+	exe "let presNum = ".strpart(getline('.'), c1-1, c2-c1+1-cdiff)
 	let lastnum = presNum + incr*(r2-r1)
-	" a simple way to find the number of digits in a number
+	" a simple way to find the number of digits in a number (including decimal
+	" points, - signs etc).
 	let maxstrlen = strlen("".lastnum)
 
 	let r = r1
+	exe 'normal '.c1v.'|'
 	while (r <= r2)
-		let linebef = strpart(getline('.'), 0, c1-1)
-		let lineaft = strpart(getline('.'), c2, 1000)
+		let cnow = col(".")
+		let linebef = strpart(getline('.'), 0, cnow-1)
+		let lineaft = strpart(getline('.'), cnow+clen, 1000)
 
-		" find the number of padding spaces required for left alignment
+		" find the number of padding spaces required for left/rigth alignment
 		if a:pad
 			let preslen = strlen("".presNum)
 			let padspace = StrRepeat(" ", maxstrlen - preslen)
@@ -91,7 +129,16 @@ function! IncrementColumn(pad, ...)
 		" 2. the padding spaces.
 		" 3. the present number
 		" 4. the part of the line after the number
-		let lineset = linebef.padspace.presNum.lineaft
+		" the padding spaces are either before or after the current number
+		" depending on whether the pad argument is 1 or 2 (respectively).
+		if a:pad == 1
+			let lineset = linebef.padspace.presNum.lineaft
+		elseif a:pad == 2
+			let lineset = linebef.presNum.padspace.lineaft
+		else
+			let lineset = linebef.presNum.lineaft
+		end
+
 		call setline('.', lineset)
 		let presNum = presNum + incr
 		normal j
@@ -99,8 +146,4 @@ function! IncrementColumn(pad, ...)
 	endwhile
 	normal `<
 endfunction
-
-com! -nargs=? Inc :call IncrementColumn(1,<args>)
-com! -nargs=? IncN :call IncrementColumn(0,<args>)
-
 
